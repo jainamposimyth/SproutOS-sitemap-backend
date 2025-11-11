@@ -1,0 +1,20 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Sitemap {
+  id          String   @id @default(cuid())
+  projectName String
+  prompt      String?
+  nodes        Json
+  edges        Json
+  language    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
