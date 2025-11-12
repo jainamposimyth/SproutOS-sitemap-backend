@@ -6,7 +6,9 @@ const axios = require('axios')
 const prisma = new PrismaClient()
 const app = express();
 
-app.use(cors());
+app.use(cors(
+  origin=["http://localhost:3000","https://sprout-os-frontend.vercel.app/"]
+));
 app.use(express.json());
 
 
@@ -303,3 +305,4 @@ app.listen(PORT, () => {
 });
 
 module.exports = app;
+
