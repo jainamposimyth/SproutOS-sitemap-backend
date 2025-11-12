@@ -2,6 +2,7 @@ const { PrismaClient } = require('./generated/prisma')
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
+const axios = require('axios')
 const prisma = new PrismaClient()
 const app = express();
 
@@ -192,50 +193,108 @@ app.post('/api/generate-structure', async (req, res) => {
   }
 });
 
-
-app.post('/api/save-sitemap', async(req,res)=>{
-
-try {
-  const {  projectName, nodes, edges, prompt, language,} = req.body
-  const newSitemap = await prisma.sitemap.create({
-    data:{
-      projectName,edges,nodes,language,prompt
+app.post('/api/generate-design-structure', async (req, res) => {
+  try {
+    const { prompt } = req.body
+    if (!prompt) {
+      return res.status(400).json({ error: "Prompt is required" });
     }
-  })
-    res.status(200).json({ message: 'Sitemap saved successfully', sitemap: newSitemap })
-} catch (error) {
-   console.error('Error saving sitemap:', error)
-    res.status(500).json({ error: 'Failed to save sitemap' })
-}
+    const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are an AI web architect. Your job is to select which website sections to include.",
+        },
+        {
+          role: "user",
+          content: `
+              You are an expert web architect and UI designer.
+user's project description:${prompt}
+Your task: Based on the user's project description, select the most suitable website sections for that website.
+
+Rules:
+1. You can only choose sections from this approved list:
+   [navbar, hero, about, services, portfolio, pricing, testimonials, contact, footer]
+2. Do NOT invent new section names or structures.
+3. Include only the sections that make sense for the user's prompt — do not always include all 8–9.
+4. The order should be logical for a real website (e.g. navbar first, footer last).
+5. Output must be a valid JSON array only — no explanation, no text before or after.
+6. Minimum 3 and maximum 7 sections.
+7. Tailor your selection to the type of website the user describes (for example: 
+   - A “personal portfolio” site might need ["navbar", "hero", "about", "portfolio", "contact", "footer"]
+   - A “restaurant” site might need ["navbar", "hero", "services", "pricing", "contact", "footer"]
+   - A “corporate agency” site might need ["navbar", "hero", "about", "services", "testimonials", "contact", "footer"]
+)
+
+Your output must strictly follow this pattern:
+["navbar", "hero", "services", "pricing", "footer"]
+
+  `}],
+      temperature: 0.4,
+
+    }, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+      },
+    })
+    const message = response.data.choices[0].message.content.trim()
+    const match = message.match(/\[.*\]/s);
+    const sections = match ? JSON.parse(match[0]) : ["navbar", "hero", "footer"];
+    res.json({ sections });
+
+  } catch (error) {
+    console.error("Groq API Error:", error.response?.data || error.message);
+    res.status(500).json({ error: "Failed to generate structure" });
+  }
 
 })
 
-app.get('/api/sitemaps', async(req,res)=>{
+app.post('/api/save-sitemap', async (req, res) => {
+
+  try {
+    const { projectName, nodes, edges, prompt, language, } = req.body
+    const newSitemap = await prisma.sitemap.create({
+      data: {
+        projectName, edges, nodes, language, prompt
+      }
+    })
+    res.status(200).json({ message: 'Sitemap saved successfully', sitemap: newSitemap })
+  } catch (error) {
+    console.error('Error saving sitemap:', error)
+    res.status(500).json({ error: 'Failed to save sitemap' })
+  }
+
+})
+
+app.get('/api/sitemaps', async (req, res) => {
   try {
     const allSitemaps = await prisma.sitemap.findMany({
-      orderBy:{createdAt:'desc'}
+      orderBy: { createdAt: 'desc' }
     })
     res.status(200).json(allSitemaps)
   } catch (error) {
-       console.error('Error loading sitemaps:', error)
-        res.status(500).json({ error: 'Failed to load sitemaps' })
+    console.error('Error loading sitemaps:', error)
+    res.status(500).json({ error: 'Failed to load sitemaps' })
   }
 })
 
-app.get('/api/sitemaps/:id',async(req,res)=>{
- try {
-   const {id} = req.params
-   const findSitemap = await prisma.sitemap.findUnique({
-     where:{id:String(id)}
-   })
-     if (!findSitemap) {
-       return res.status(404).json({ error: 'Sitemap not found' })
-     }
-   res.status(200).json(findSitemap)
- } catch (error) {
-     console.error('Error fetching sitemap:', error)
+app.get('/api/sitemaps/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    const findSitemap = await prisma.sitemap.findUnique({
+      where: { id: String(id) }
+    })
+    if (!findSitemap) {
+      return res.status(404).json({ error: 'Sitemap not found' })
+    }
+    res.status(200).json(findSitemap)
+  } catch (error) {
+    console.error('Error fetching sitemap:', error)
     res.status(500).json({ error: 'Failed to fetch sitemap' })
- }
+  }
 })
 const PORT = process.env.PORT || 4000;
 
