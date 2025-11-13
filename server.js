@@ -3,12 +3,18 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 const axios = require('axios')
-const prisma = new PrismaClient()
+
 const app = express();
+const { db, sitemap } = require("./src/db/index.js"); 
+
+const { desc, eq } = require("drizzle-orm");
+
 
 app.use(cors(
-  origin=["http://localhost:3000","https://sprout-os-frontend.vercel.app/"]
+  origin=["http://localhost:3000","https://sprout-os-frontend.vercel.app"]
 ));
+
+
 app.use(express.json());
 
 
@@ -254,50 +260,66 @@ Your output must strictly follow this pattern:
 
 })
 
-app.post('/api/save-sitemap', async (req, res) => {
-
+app.post("/api/save-sitemap", async (req, res) => {
   try {
-    const { projectName, nodes, edges, prompt, language, } = req.body
-    const newSitemap = await prisma.sitemap.create({
-      data: {
-        projectName, edges, nodes, language, prompt
-      }
-    })
-    res.status(200).json({ message: 'Sitemap saved successfully', sitemap: newSitemap })
+    const { projectName, nodes, edges, prompt, language } = req.body;
+
+    const newSitemap = await db
+      .insert(sitemap)
+      .values({
+        projectName,
+        nodes,
+        edges,
+        prompt,
+        language,
+      })
+      .returning(); // returns inserted row(s)
+
+    res.status(200).json({
+      message: "Sitemap saved successfully",
+      sitemap: newSitemap[0],
+    });
   } catch (error) {
-    console.error('Error saving sitemap:', error)
-    res.status(500).json({ error: 'Failed to save sitemap' })
+    console.error("Error saving sitemap:", error);
+    res.status(500).json({ error: "Failed to save sitemap" });
   }
+});
 
-})
 
-app.get('/api/sitemaps', async (req, res) => {
+app.get("/api/sitemaps", async (req, res) => {
   try {
-    const allSitemaps = await prisma.sitemap.findMany({
-      orderBy: { createdAt: 'desc' }
-    })
-    res.status(200).json(allSitemaps)
+    const allSitemaps = await db
+      .select()
+      .from(sitemap)
+      .orderBy(desc(sitemap.createdAt));
+
+    res.status(200).json(allSitemaps);
   } catch (error) {
-    console.error('Error loading sitemaps:', error)
-    res.status(500).json({ error: 'Failed to load sitemaps' })
+    console.error("Error loading sitemaps:", error);
+    res.status(500).json({ error: "Failed to load sitemaps" });
   }
-})
+});
 
-app.get('/api/sitemaps/:id', async (req, res) => {
+
+app.get("/api/sitemaps/:id", async (req, res) => {
   try {
-    const { id } = req.params
-    const findSitemap = await prisma.sitemap.findUnique({
-      where: { id: String(id) }
-    })
-    if (!findSitemap) {
-      return res.status(404).json({ error: 'Sitemap not found' })
+    const { id } = req.params;
+
+    const found = await db
+      .select()
+      .from(sitemap)
+      .where(eq(sitemap.id, id));
+
+    if (found.length === 0) {
+      return res.status(404).json({ error: "Sitemap not found" });
     }
-    res.status(200).json(findSitemap)
+
+    res.status(200).json(found[0]);
   } catch (error) {
-    console.error('Error fetching sitemap:', error)
-    res.status(500).json({ error: 'Failed to fetch sitemap' })
+    console.error("Error fetching sitemap:", error);
+    res.status(500).json({ error: "Failed to fetch sitemap" });
   }
-})
+});
 const PORT = process.env.PORT || 4000;
 
 app.listen(PORT, () => {
