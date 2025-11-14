@@ -320,6 +320,21 @@ app.get("/api/sitemaps/:id", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch sitemap" });
   }
 });
+
+app.delete('/api/delete-sitemap/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    await db.delete(sitemap).where(eq(sitemap.id, id));
+
+    res.status(200).json({ message: "Sitemap deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting sitemap:", error);
+    res.status(500).json({ error: "Failed to delete sitemap" });
+  }
+});
+
+
 const PORT = process.env.PORT || 4000;
 
 app.listen(PORT, () => {
